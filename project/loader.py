@@ -14,6 +14,6 @@ def load(path: str, low_memory: bool = False, format: bool = True) -> Dict[str, 
         if format:
             df["DATE"] = pd.to_datetime(df["DATE"])
 
-        data[file] = df
+        data[file.replace(".csv", "")] = df
 
     return data

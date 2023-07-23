@@ -13,7 +13,7 @@ with open("config.json", 'r') as file:
 project = Project(CONFIG)
 project.load()
 
-df = project.data["stlouis_1938-2023.csv"].tail(1825)
+df = project.data["stlouis_1938-2023"].tail(365)
 
 def calculate_average(row):
     valid_values = [value for value in row if pd.notna(value)]
