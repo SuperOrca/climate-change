@@ -1,13 +1,5 @@
 {
     "version": "1.0.0",
-    "data": {
-        "path": "data/",
-        "keys": [
-            ["columbus_1948-2023.csv", "dayton_1893-2023.csv"],
-            ["indianapolis_1942-2023.csv", "stlouis_1938-2023.csv"]
-        ]
-    },
-    "output": {
-        "path": "output/"
-    }
+    "data": "data/",
+    "output": "output/"
 }

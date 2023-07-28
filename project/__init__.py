@@ -6,103 +6,83 @@ import pandas as pd
 from scipy.optimize import curve_fit
 
 from . import loader
-from .utils import (
-    calculate_average,
-    calculate_r_squared,
-    sine_function,
-    split_dataframe,
-)
+
+
+def sine_func(x, A, omega, phi, c):
+    return A * np.sin(omega * x + phi) + c
+
+
+def best_fit_sine_regression(x, popt):
+    return sine_func(x, *popt)
 
 
 class Project:
     data: Dict[str, pd.DataFrame]
 
-    def __init__(self, CONFIG: dict) -> None:
-        """Main project class."""
-        self.CONFIG = CONFIG
-
-        print(f"Climate Change v{self.CONFIG['version']}")
+    def __init__(self, config: dict) -> None:
+        self.config = config
+        print(f"Climate Change v{self.config['version']}")
 
     def load(self) -> None:
-        """Load data from csv files in folder specified in the config."""
-        self.data = loader.load(self.CONFIG["data"]["path"])
+        """Load data from csv files from the folder specified in the config."""
+        self.data = loader.load(self.config["data"])
 
-    def compare_average_temperature_r_squared(self, name: str, years: int = 30) -> None:
-        """Compare extremity of average temperature."""
-        df = self.data[name]
+    def analyze_average_temperature(
+        self, name: str, initial_days: int = 365 * 30
+    ) -> None:
+        """Analyze average temperature data and generate graphs."""
+        df = self.data.get(name)
+        df = df.dropna(subset=["TMIN", "TMAX"])
+        df["TAVG"] = (df["TMIN"] + df["TMAX"]) / 2
 
-        df["AVG_TMAX_TMIN"] = df[["TMAX", "TMIN"]].apply(calculate_average, axis=1)
+        first_days = df.iloc[:initial_days]
+        x = np.arange(len(first_days))
+        y = first_days["TAVG"].values
 
-        chunk_size = 365 * years
-        x_data = np.arange(chunk_size)
-        y_data = df["AVG_TMAX_TMIN"].iloc[:chunk_size].values
+        popt, _ = curve_fit(sine_func, x, y, p0=[1, 2 * np.pi / 365, 0, 0])
 
-        valid_indices = np.isfinite(y_data)
-        x_data_valid = x_data[valid_indices]
-        y_data_valid = y_data[valid_indices]
+        df["YEAR"] = df["DATE"].dt.year
+        grouped_data = df.groupby("YEAR")
+        r_squared_values = []
 
-        initial_guess = (
-            (np.max(y_data_valid) - np.min(y_data_valid)) / 2,
-            2 * np.pi / 365,
-            0,
-            np.mean(y_data_valid),
-        )
-        popt, _ = curve_fit(
-            sine_function, x_data_valid, y_data_valid, p0=initial_guess, maxfev=5000
-        )
+        for year, group in grouped_data:
+            x_year = np.arange(len(group))
+            y_year = group["TAVG"].values
+            r_squared = 1 - np.sum(
+                (y_year - best_fit_sine_regression(x_year, popt)) ** 2
+            ) / np.sum((y_year - np.mean(y_year)) ** 2)
+            r_squared_values.append({"YEAR": year, "R-squared": r_squared})
 
-        results = []
-        for chunk_df in split_dataframe(df.iloc[chunk_size:], 365):
-            x_data = np.arange(len(chunk_df))
-            y_data = chunk_df["AVG_TMAX_TMIN"].values
+        r_squared_df = pd.DataFrame(r_squared_values)
 
-            valid_indices = np.isfinite(y_data)
-            x_data_valid = x_data[valid_indices]
-            y_data_valid = y_data[valid_indices]
+        linear_fit = np.polyfit(r_squared_df["YEAR"], r_squared_df["R-squared"], 1)
+        linear_regression_eq = f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f}"
 
-            best_fit_curve = sine_function(x_data_valid, *popt)
-            r_squared = calculate_r_squared(y_data_valid, best_fit_curve)
-
-            results.append({"Date": chunk_df["DATE"].iloc[-1], "R-squared": r_squared})
-
-        results_df = pd.DataFrame(results)
-
-        linear_coeffs = np.polyfit(
-            np.arange(len(results_df)), results_df["R-squared"], 1
-        )
-        best_fit_line = np.polyval(linear_coeffs, np.arange(len(results_df)))
-
-        print(
-            f"{name}: Linear Equation: y = {linear_coeffs[0]:.4f} * x + {linear_coeffs[1]:.4f}"
-        )
-
-        linear_fit_residuals = results_df["R-squared"] - best_fit_line
-        ss_res_linear = np.sum(linear_fit_residuals**2)
-        ss_tot_linear = np.sum(
-            (results_df["R-squared"] - np.mean(results_df["R-squared"])) ** 2
-        )
-        r_squared_linear = 1 - (ss_res_linear / ss_tot_linear)
-        print(f"{name}: R-squared value of the linear fit: {r_squared_linear}")
-
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(10, 6))
         plt.plot(
-            results_df["Date"], results_df["R-squared"], color="b", label="R-squared"
+            r_squared_df["YEAR"],
+            r_squared_df["R-squared"],
+            "o",
+            label="R^2 vs Year",
         )
         plt.plot(
-            results_df["Date"],
-            best_fit_line,
-            color="r",
-            linestyle="--",
-            label="Best Fit Line",
+            r_squared_df["YEAR"],
+            np.polyval(linear_fit, r_squared_df["YEAR"]),
+            "-",
+            label="Linear Fit",
         )
-        plt.axhline(
-            y=0, color="grey", linestyle="--", label="Zero R-squared (Baseline)"
+        plt.xlabel("Year")
+        plt.ylabel("R^2")
+        plt.title(f"R^2 vs Year for {name} (Average Temperature)")
+        plt.text(
+            0.01,
+            0.98,
+            linear_regression_eq,
+            transform=plt.gca().transAxes,
+            fontsize=12,
+            va="top",
         )
-        plt.xlabel("Date")
-        plt.ylabel("R-squared")
-        plt.title("R-squared Values over Time")
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-
         plt.legend()
-        plt.savefig(self.CONFIG["output"]["path"] + name + ".png")
+
+        plt.savefig(f"{self.config['output']}TEMP_{name}.png")
+        plt.close()

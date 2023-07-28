@@ -9,4 +9,5 @@ project = Project(CONFIG)
 project.load()
 
 for name in project.data.keys():
-    project.compare_average_temperature_r_squared(name)
+    project.analyze_average_temperature(name)
+    project.analyze_total_precipitation(name)
