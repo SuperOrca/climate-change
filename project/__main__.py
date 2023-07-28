@@ -8,8 +8,8 @@ with open("config.json", "r") as file:
 project = Project(CONFIG)
 project.load()
 
-YEARS = 25
+YEARS = 35
 
 for name in project.data.keys():
     project.analyze_average_temperature(name, 365 * YEARS)
-    project.analyze_monthly_precipitation(name, 12 * YEARS)
+    project.analyze_yearly_precipitation(name)
