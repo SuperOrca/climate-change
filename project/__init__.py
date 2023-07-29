@@ -5,15 +5,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import curve_fit
 
-from . import loader
-
-
-def sine_func(x, A, omega, phi, c):
-    return A * np.sin(omega * x + phi) + c
-
-
-def best_fit_sine_regression(x, popt):
-    return sine_func(x, *popt)
+from .loader import load
+from .utils import sine_func, best_fit_sine_regression
 
 
 class Project:
@@ -25,7 +18,7 @@ class Project:
 
     def load(self) -> None:
         """Load data from csv files from the folder specified in the config."""
-        self.data = loader.load(self.config["data"])
+        self.data = load(self.config["data"])
 
     def analyze_average_temperature(
         self, name: str, initial_days: int = 365 * 30
