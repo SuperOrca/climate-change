@@ -8,8 +8,8 @@ with open("config.json", "r") as file:
 project = Project(CONFIG)
 project.load()
 
-YEARS = 35
+name = "indianapolis_1942-2023"
 
-for name in project.data.keys():
-    project.analyze_average_temperature(name, 365 * YEARS)
-    project.analyze_yearly_precipitation(name)
+# project.analyze_average_temperature(name, "Indianapolis International Airport (Average Temperature)")
+# project.analyze_yearly_precipitation(name, "Indianapolis International Airport")
+project.test(name, "Indianapolis International Airport (Average Temperature)", 1943)

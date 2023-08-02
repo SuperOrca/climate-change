@@ -14,6 +14,7 @@ def load(
         df = pd.read_csv(path + file, low_memory=low_memory)
 
         if format:
+            df = df[~df.apply(lambda row: row.astype(str).str.startswith("999")).any(axis=1)]
             df["DATE"] = pd.to_datetime(df["DATE"])
 
         data[file.replace(".csv", "")] = df

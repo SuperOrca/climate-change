@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,13 +19,28 @@ class Project:
     def load(self) -> None:
         """Load data from csv files from the folder specified in the config."""
         self.data = load(self.config["data"])
+    
+    def test(self, name: str, title: str, year: int, initial_days: int = 365 * 30) -> None:
+        df = self.data.get(name)
+        df = df.dropna(subset=["TMIN", "TMAX"])
+
+        df["TAVG"] = (df["TMIN"] + df["TMAX"]) / 2
+
+        first_days = df.iloc[:initial_days]
+        x_fit = np.arange(len(first_days))
+        y = first_days["TAVG"].values
+
+        popt, _ = curve_fit(sine_func, x, y, p0=[1, 2 * np.pi / 365, 0, 0])
+
+        df = df[df["DATE"].dt.year == year]
 
     def analyze_average_temperature(
-        self, name: str, initial_days: int = 365 * 30
+        self, name: str, title: str, initial_days: int = 365 * 30
     ) -> None:
         """Analyze average temperature data and generate graphs."""
         df = self.data.get(name)
         df = df.dropna(subset=["TMIN", "TMAX"])
+
         df["TAVG"] = (df["TMIN"] + df["TMAX"]) / 2
 
         first_days = df.iloc[:initial_days]
@@ -56,7 +71,7 @@ class Project:
             r_squared_df["YEAR"],
             r_squared_df["R-SQUARED"],
             "o",
-            label="R^2 vs Year",
+            label="Data",
         )
         plt.plot(
             r_squared_df["YEAR"],
@@ -66,15 +81,15 @@ class Project:
         )
         plt.xlabel("Year")
         plt.ylabel("R^2")
-        plt.title(f"R^2 vs Year for {name} (Average Temperature)")
+        plt.title(title)
         plt.annotate(linear_regression_eq, xy=(0.02, 0.02), xycoords='axes fraction', fontsize=12)
         plt.legend()
 
-        plt.savefig(f"{self.config['output']}TEMP_{name}.png")
+        plt.savefig(f"{self.config['output']}TAVG_{name}.png")
         plt.close()
 
     def analyze_yearly_precipitation(
-        self, name: str
+        self, name: str, title: str
         ) -> None:
         """Analyze monthly precipitation data and generate graphs."""
         df = self.data.get(name)
@@ -91,7 +106,7 @@ class Project:
             yearly_data["YEAR"],
             yearly_data["PRCP"],
             "o",
-            label="Maximum Precipitation vs Year",
+            label=f"Data",
         )
         plt.plot(
             yearly_data["YEAR"],
@@ -100,10 +115,10 @@ class Project:
             label="Linear Fit",
         )
         plt.xlabel("Year")
-        plt.ylabel("Maximum Precipitation")
-        plt.title(f"Maximum Precipitation vs Year for {name}")
+        plt.ylabel("Maximum Precipitation (mm)")
+        plt.title(title)
         plt.annotate(linear_regression_eq, xy=(0.02, 0.02), xycoords='axes fraction', fontsize=12)
         plt.legend()
 
-        plt.savefig(f"{self.config['output']}PRCP_{name}.png")
+        plt.savefig(f"{self.config['output']}MAX_PRCP_{name}.png")
         plt.close()
