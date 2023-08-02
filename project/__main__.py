@@ -12,4 +12,18 @@ name = "indianapolis_1942-2023"
 
 # project.analyze_average_temperature(name, "Indianapolis International Airport (Average Temperature)")
 # project.analyze_yearly_precipitation(name, "Indianapolis International Airport")
-project.test(name, "Indianapolis International Airport (Average Temperature)", 1943)
+for i in range(2015, 2024):
+    try:
+        project.test(
+            name, "Indianapolis International Airport (Average Temperature)", i
+        )
+    except:
+        pass
+
+for i in range(1942, 1951):
+    try:
+        project.test(
+            name, "Indianapolis International Airport (Average Temperature)", i
+        )
+    except:
+        pass

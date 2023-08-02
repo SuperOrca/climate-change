@@ -1,4 +1,4 @@
-from typing import Dict, Literal
+from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,20 +19,6 @@ class Project:
     def load(self) -> None:
         """Load data from csv files from the folder specified in the config."""
         self.data = load(self.config["data"])
-    
-    def test(self, name: str, title: str, year: int, initial_days: int = 365 * 30) -> None:
-        df = self.data.get(name)
-        df = df.dropna(subset=["TMIN", "TMAX"])
-
-        df["TAVG"] = (df["TMIN"] + df["TMAX"]) / 2
-
-        first_days = df.iloc[:initial_days]
-        x_fit = np.arange(len(first_days))
-        y = first_days["TAVG"].values
-
-        popt, _ = curve_fit(sine_func, x, y, p0=[1, 2 * np.pi / 365, 0, 0])
-
-        df = df[df["DATE"].dt.year == year]
 
     def analyze_average_temperature(
         self, name: str, title: str, initial_days: int = 365 * 30
@@ -82,15 +68,15 @@ class Project:
         plt.xlabel("Year")
         plt.ylabel("R^2")
         plt.title(title)
-        plt.annotate(linear_regression_eq, xy=(0.02, 0.02), xycoords='axes fraction', fontsize=12)
+        plt.annotate(
+            linear_regression_eq, xy=(0.02, 0.02), xycoords="axes fraction", fontsize=12
+        )
         plt.legend()
 
         plt.savefig(f"{self.config['output']}TAVG_{name}.png")
         plt.close()
 
-    def analyze_yearly_precipitation(
-        self, name: str, title: str
-        ) -> None:
+    def analyze_yearly_precipitation(self, name: str, title: str) -> None:
         """Analyze monthly precipitation data and generate graphs."""
         df = self.data.get(name)
         df = df.dropna(subset=["PRCP"])
@@ -117,8 +103,50 @@ class Project:
         plt.xlabel("Year")
         plt.ylabel("Maximum Precipitation (mm)")
         plt.title(title)
-        plt.annotate(linear_regression_eq, xy=(0.02, 0.02), xycoords='axes fraction', fontsize=12)
+        plt.annotate(
+            linear_regression_eq, xy=(0.02, 0.02), xycoords="axes fraction", fontsize=12
+        )
         plt.legend()
 
         plt.savefig(f"{self.config['output']}MAX_PRCP_{name}.png")
+        plt.close()
+
+    def test(
+        self, name: str, title: str, year: int, initial_days: int = 365 * 30
+    ) -> None:
+        df = self.data.get(name)
+        df = df.dropna(subset=["TMIN", "TMAX", "DATE"])
+
+        df["TAVG"] = (df["TMIN"] + df["TMAX"]) / 2
+
+        first_days = df.iloc[:initial_days]
+        x = np.arange(len(first_days))
+        y = first_days["TAVG"].values
+
+        popt, _ = curve_fit(sine_func, x, y, p0=[1, 2 * np.pi / 365, 0, 0])
+
+        df = df[df["DATE"].dt.year == year]
+
+        x_range = pd.date_range(start=df["DATE"].min(), periods=len(df), freq="D")
+        y_fit = best_fit_sine_regression(np.arange(len(x_range)), popt)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(
+            df["DATE"],
+            df["TAVG"],
+            "o",
+            label="Data",
+        )
+        plt.plot(
+            x_range,
+            y_fit,
+            "-",
+            label="Sine Fit",
+        )
+        plt.xlabel("Date")
+        plt.ylabel("Average Temperature")
+        plt.title(title)
+        plt.legend()
+
+        plt.savefig(f"{self.config['output']}TAVG_{name}_{year}.png")
         plt.close()
