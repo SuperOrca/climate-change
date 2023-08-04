@@ -27,7 +27,7 @@ class Project:
         df = self.data.get(name)
         df = df.dropna(subset=["TMIN", "TMAX"])
 
-        df["TAVG"] = (df["TMIN"] + df["TMAX"]) / 2
+        df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
 
         first_days = df.iloc[:initial_days]
         x = np.arange(len(first_days))
@@ -76,7 +76,7 @@ class Project:
         plt.savefig(f"{self.config['output']}TAVG_{name}.png")
         plt.close()
 
-    def analyze_yearly_precipitation(self, name: str, title: str) -> None:
+    def analyze_maximum_precipitation(self, name: str, title: str) -> None:
         """Analyze monthly precipitation data and generate graphs."""
         df = self.data.get(name)
         df = df.dropna(subset=["PRCP"])
@@ -111,13 +111,13 @@ class Project:
         plt.savefig(f"{self.config['output']}MAX_PRCP_{name}.png")
         plt.close()
 
-    def test(
+    def analyze_annual_average_temperature(
         self, name: str, title: str, year: int, initial_days: int = 365 * 30
     ) -> None:
         df = self.data.get(name)
-        df = df.dropna(subset=["TMIN", "TMAX", "DATE"])
+        df = df.dropna(subset=["TMIN", "TMAX"])
 
-        df["TAVG"] = (df["TMIN"] + df["TMAX"]) / 2
+        df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
 
         first_days = df.iloc[:initial_days]
         x = np.arange(len(first_days))
@@ -130,6 +130,9 @@ class Project:
         x_range = pd.date_range(start=df["DATE"].min(), periods=len(df), freq="D")
         y_fit = best_fit_sine_regression(np.arange(len(x_range)), popt)
 
+        avg, _ = curve_fit(sine_func, np.arange(len(df)), df["TAVG"].values, p0=[1, 2 * np.pi / 365, 0, 0])
+        avg_fit = best_fit_sine_regression(np.arange(len(x_range)), avg)
+
         plt.figure(figsize=(10, 6))
         plt.plot(
             df["DATE"],
@@ -141,12 +144,54 @@ class Project:
             x_range,
             y_fit,
             "-",
-            label="Sine Fit",
+            label="30 Year Average",
+        )
+        plt.plot(
+            x_range,
+            avg_fit,
+            "-",
+            label="Year Average",
         )
         plt.xlabel("Date")
-        plt.ylabel("Average Temperature")
+        plt.ylabel("Average Temperature (°C)")
         plt.title(title)
         plt.legend()
 
         plt.savefig(f"{self.config['output']}TAVG_{name}_{year}.png")
+        plt.close()
+
+    def analyze_single_annual_average_temperature(self, name: str, title: str) -> None:
+        df = self.data.get(name)
+        df = df.dropna(subset=["TMIN", "TMAX"])
+
+        df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
+
+        df = df[df["DATE"].dt.month == 1]
+        df = df[df["DATE"].dt.day == 1]
+
+        linear_fit = np.polyfit(df["DATE"].dt.year, df["TAVG"], 1)
+        linear_regression_eq = f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f}"
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(
+            df["DATE"].dt.year,
+            df["TAVG"],
+            "o",
+            label="Data",
+        )
+        plt.plot(
+            df["DATE"].dt.year,
+            np.polyval(linear_fit, df["DATE"].dt.year),
+            "-",
+            label="Linear Fit",
+        )
+        plt.xlabel("Year")
+        plt.ylabel("January 1st Average Temperature (°C)")
+        plt.title(title)
+        plt.annotate(
+            linear_regression_eq, xy=(0.02, 0.02), xycoords="axes fraction", fontsize=12
+        )
+        plt.legend()
+
+        plt.savefig(f"{self.config['output']}STAVG_{name}.png")
         plt.close()
