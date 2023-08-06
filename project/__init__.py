@@ -6,7 +6,14 @@ import pandas as pd
 from scipy.optimize import curve_fit
 
 from .loader import load
-from .utils import sine_func, best_fit_sine_regression
+
+
+def sine_func(x, A, omega, phi, c):
+    return A * np.sin(omega * x + phi) + c
+
+
+def best_fit_sine_regression(x, popt):
+    return sine_func(x, *popt)
 
 
 class Project:
