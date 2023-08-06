@@ -20,6 +20,45 @@ class Project:
         """Load data from csv files from the folder specified in the config."""
         self.data = load(self.config["data"])
 
+    def full_average_temperature(
+        self, name: str, title: str, initial_days: int = 365 * 30
+    ) -> None:
+        """Analyze average temperature data and generate graphs."""
+        df = self.data.get(name)
+        df = df.dropna(subset=["TMIN", "TMAX"])
+
+        df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
+
+        first_days = df.iloc[:initial_days]
+        x = np.arange(len(first_days))
+        y = first_days["TAVG"].values
+
+        popt, _ = curve_fit(sine_func, x, y, p0=[1, 2 * np.pi / 365, 0, 0])
+
+        x_fit = pd.date_range(start=df["DATE"].min(), periods=len(df), freq="D")
+        y_fit = sine_func(np.arange(len(x_fit)), *popt)
+
+        plt.figure(figsize=(60, 6))
+        plt.plot(
+            df["DATE"],
+            df["TAVG"],
+            "o",
+            label="Data",
+        )
+        plt.plot(
+            x_fit,
+            y_fit,
+            "-",
+            label="Sine Fit",
+        )
+        plt.xlabel("Year")
+        plt.ylabel("Average Temperature")
+        plt.title(title)
+        plt.legend()
+
+        plt.savefig(f"{self.config['output']}FULL_TAVG_{name}.png")
+        plt.close()
+
     def analyze_average_temperature(
         self, name: str, title: str, initial_days: int = 365 * 30
     ) -> None:
@@ -50,7 +89,16 @@ class Project:
         r_squared_df = pd.DataFrame(r_squared_values)
 
         linear_fit = np.polyfit(r_squared_df["YEAR"], r_squared_df["R-SQUARED"], 1)
-        linear_regression_eq = f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f}"
+
+        y_pred = np.polyval(linear_fit, r_squared_df["YEAR"])
+        mean_y = np.mean(r_squared_df["R-SQUARED"])
+        tss = np.sum((r_squared_df["R-SQUARED"] - mean_y) ** 2)
+        rss = np.sum((r_squared_df["R-SQUARED"] - y_pred) ** 2)
+        r_squared = 1 - (rss / tss)
+
+        linear_regression_eq = (
+            f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f} (R^2 = {r_squared:.4f})"
+        )
 
         plt.figure(figsize=(10, 6))
         plt.plot(
@@ -130,7 +178,12 @@ class Project:
         x_range = pd.date_range(start=df["DATE"].min(), periods=len(df), freq="D")
         y_fit = best_fit_sine_regression(np.arange(len(x_range)), popt)
 
-        avg, _ = curve_fit(sine_func, np.arange(len(df)), df["TAVG"].values, p0=[1, 2 * np.pi / 365, 0, 0])
+        avg, _ = curve_fit(
+            sine_func,
+            np.arange(len(df)),
+            df["TAVG"].values,
+            p0=[1, 2 * np.pi / 365, 0, 0],
+        )
         avg_fit = best_fit_sine_regression(np.arange(len(x_range)), avg)
 
         plt.figure(figsize=(10, 6))
@@ -170,7 +223,16 @@ class Project:
         df = df[df["DATE"].dt.day == 1]
 
         linear_fit = np.polyfit(df["DATE"].dt.year, df["TAVG"], 1)
-        linear_regression_eq = f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f}"
+
+        y_pred = np.polyval(linear_fit, df["DATE"].dt.year)
+        mean_y = np.mean(df["TAVG"])
+        tss = np.sum((df["TAVG"] - mean_y) ** 2)
+        rss = np.sum((df["TAVG"] - y_pred) ** 2)
+        r_squared = 1 - (rss / tss)
+
+        linear_regression_eq = (
+            f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f} (R^2 = {r_squared:.4f})"
+        )
 
         plt.figure(figsize=(10, 6))
         plt.plot(
