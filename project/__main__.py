@@ -8,6 +8,6 @@ with open("config.json", "r") as file:
 project = Project(CONFIG)
 project.load()
 
-name = "minneapolis_1938-2022"
+name = "columbus_1948-2022"
 
-project.full_average_temperature(name, "test")
+project.analysis(name, "test", initial=365*20)

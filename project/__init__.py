@@ -6,6 +6,7 @@ import pandas as pd
 from scipy.optimize import curve_fit
 
 from .loader import load
+from .utils import quadratic_function
 
 
 def sine_func(x, A, omega, phi, c):
@@ -27,6 +28,81 @@ class Project:
         """Load data from csv files from the folder specified in the config."""
         self.data = load(self.config["data"])
 
+    def analysis(self, name: str, title: str, initial: int = 365 * 30):
+        df = self.data.get(name).dropna(subset=["TMIN", "TMAX"])
+        df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
+        df.loc[:, "DAY"] = df["DATE"].dt.dayofyear / df["DATE"].dt.is_leap_year.apply(
+            lambda x: 366 if x else 365
+        )
+
+        idf = df.loc[:initial]
+
+        A = np.vstack([idf["DAY"]**2, idf["DAY"], np.ones(len(idf["DAY"]))]).T
+        coefficients, _, _, _ = np.linalg.lstsq(A, idf["TAVG"], rcond=None)
+
+        # x_plot = np.linspace(idf["DAY"].min(), idf["DAY"].max(), 100)
+        # y_plot = quadratic_function(x_plot, *coefficients)
+
+        # mean_y = np.mean(idf["TAVG"])
+        # SS_total = np.sum((idf["TAVG"] - mean_y)**2)
+        # SS_residual = np.sum((idf["TAVG"] - quadratic_function(idf["DAY"], *coefficients))**2)
+        # R_squared = 1 - SS_residual / SS_total
+
+        years = df["DATE"].dt.year.unique()
+        ydf_data = {"YEAR": [], "R^2": []}
+
+        for year in years:
+            ydf_data["YEAR"].append(year)
+            ydf_data["R^2"].append(self.year_analysis(df, coefficients, year))
+
+        ydf = pd.DataFrame(ydf_data)
+
+        linear_fit = np.polyfit(ydf["YEAR"], ydf["R^2"], 1)
+
+        y_pred = np.polyval(linear_fit, ydf["YEAR"])
+        mean_y = np.mean(ydf["R^2"])
+        tss = np.sum((ydf["R^2"] - mean_y) ** 2)
+        rss = np.sum((ydf["R^2"] - y_pred) ** 2)
+        r_squared = 1 - (rss / tss)
+
+        linear_regression_eq = (
+            f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f} (R^2 = {r_squared:.4f})"
+        )
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(
+            ydf["YEAR"],
+            ydf["R^2"],
+            "o",
+            label="Data",
+        )
+        plt.plot(
+            ydf["YEAR"],
+            np.polyval(linear_fit, ydf["YEAR"]),
+            "-",
+            label="Linear Fit",
+        )
+        plt.xlabel("Year")
+        plt.ylabel("R^2")
+        plt.title(title)
+        plt.annotate(
+            linear_regression_eq, xy=(0.02, 0.02), xycoords="axes fraction", fontsize=12
+        )
+        plt.legend()
+
+        plt.savefig(f"{self.config['output']}{name}.png")
+        plt.close()
+
+    def year_analysis(self, df: pd.DataFrame, coefficients: list, year: int):
+        ydf = df[df["DATE"].dt.year == year]
+
+        mean_y = np.mean(ydf["TAVG"])
+        SS_total = np.sum((ydf["TAVG"] - mean_y)**2)
+        SS_residual = np.sum((ydf["TAVG"] - quadratic_function(ydf["DAY"], *coefficients))**2)
+        R_squared = 1 - SS_residual / SS_total
+
+        return R_squared
+
     def full_average_temperature(
         self, name: str, title: str, initial_days: int = 365 * 30
     ) -> None:
@@ -36,7 +112,7 @@ class Project:
 
         df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
 
-        first_days = df.iloc[:initial_days]
+        first_days = df.iloc[:initial_days].reset_index()
         x = np.arange(len(first_days))
         y = first_days["TAVG"].values
 
@@ -45,7 +121,7 @@ class Project:
         x_fit = pd.date_range(start=df["DATE"].min(), periods=len(df), freq="D")
         y_fit = sine_func(np.arange(len(x_fit)), *popt)
 
-        plt.figure(figsize=(60, 6))
+        plt.figure(figsize=(60, 8))
         plt.plot(
             df["DATE"],
             df["TAVG"],
