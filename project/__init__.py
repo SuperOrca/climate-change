@@ -37,16 +37,7 @@ class Project:
 
         idf = df.loc[:initial]
 
-        A = np.vstack([idf["DAY"]**2, idf["DAY"], np.ones(len(idf["DAY"]))]).T
-        coefficients, _, _, _ = np.linalg.lstsq(A, idf["TAVG"], rcond=None)
-
-        # x_plot = np.linspace(idf["DAY"].min(), idf["DAY"].max(), 100)
-        # y_plot = quadratic_function(x_plot, *coefficients)
-
-        # mean_y = np.mean(idf["TAVG"])
-        # SS_total = np.sum((idf["TAVG"] - mean_y)**2)
-        # SS_residual = np.sum((idf["TAVG"] - quadratic_function(idf["DAY"], *coefficients))**2)
-        # R_squared = 1 - SS_residual / SS_total
+        coefficients, _ = curve_fit(quadratic_function, idf["DAY"], idf["TAVG"])
 
         years = df["DATE"].dt.year.unique()
         ydf_data = {"YEAR": [], "R^2": []}
@@ -97,8 +88,10 @@ class Project:
         ydf = df[df["DATE"].dt.year == year]
 
         mean_y = np.mean(ydf["TAVG"])
-        SS_total = np.sum((ydf["TAVG"] - mean_y)**2)
-        SS_residual = np.sum((ydf["TAVG"] - quadratic_function(ydf["DAY"], *coefficients))**2)
+        SS_total = np.sum((ydf["TAVG"] - mean_y) ** 2)
+        SS_residual = np.sum(
+            (ydf["TAVG"] - quadratic_function(ydf["DAY"], *coefficients)) ** 2
+        )
         R_squared = 1 - SS_residual / SS_total
 
         return R_squared
