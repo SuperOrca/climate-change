@@ -6,15 +6,7 @@ import pandas as pd
 from scipy.optimize import curve_fit
 
 from .loader import load
-from .utils import quadratic_function
-
-
-def sine_func(x, A, omega, phi, c):
-    return A * np.sin(omega * x + phi) + c
-
-
-def best_fit_sine_regression(x, popt):
-    return sine_func(x, *popt)
+from .utils import quadratic_function, sine_func, best_fit_sine_regression
 
 
 class Project:
@@ -28,7 +20,103 @@ class Project:
         """Load data from csv files from the folder specified in the config."""
         self.data = load(self.config["data"])
 
-    def analysis(self, name: str, title: str, initial: int = 365 * 30):
+    def test_9(self, name: str, title: str):
+        df = self.data.get(name).dropna(subset=["TMIN", "TMAX"])
+        df["TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
+        df["DOY"] = df["DATE"].dt.day_of_year
+
+        daily_stats = df.groupby("DOY")["TAVG"].agg(["mean", "std"]).reset_index()
+
+        excursions = {"YEAR": [], "EXCUR2": [], "EXCUR3": []}
+
+        for year, group in df.groupby(df["DATE"].dt.year):
+            excursions["YEAR"].append(year)
+            value2 = 0
+            value3 = 0
+            for _, day in group.iterrows():
+                day_stats = daily_stats[daily_stats["DOY"] == day["DOY"]]
+                mean = day_stats["mean"].values[0]
+                std = day_stats["std"].values[0]
+                value = day["TAVG"]
+
+                if value > mean + std * 2:
+                    value2 += 1
+                # if value < mean - std * 2:
+                #     value2 += 1
+
+                if value > mean + std * 3:
+                    value3 += 1
+                # if value < mean - std * 3:
+                #     value3 += 1
+            excursions["EXCUR2"].append(value2)
+            excursions["EXCUR3"].append(value3)
+
+        edf = pd.DataFrame(excursions)
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(edf["YEAR"], edf["EXCUR2"], "o")
+        plt.ylabel("# of Excursions")
+        plt.title(title)
+        plt.savefig(f"{self.config['output']}{name}_2.png")
+        plt.close()
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(edf["YEAR"], edf["EXCUR3"], "o")
+        plt.ylabel("# of Excursions")
+        plt.title(title)
+        plt.savefig(f"{self.config['output']}{name}_3.png")
+        plt.close()
+
+    def test_8(self, name: str, title: str, initial: int = 30):
+        """graph year vs standard deviation"""
+        df = self.data.get(name).dropna(subset=["TMIN", "TMAX"])
+        # df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
+        df.loc[:, "YEAR"] = df["DATE"].dt.year
+
+        stds = df.groupby("YEAR")["TMAX"].std()
+
+        avg_std = stds.head(initial).mean()
+
+        stds = stds - avg_std
+
+        linear_fit = np.polyfit(stds.index, stds.values, 1)
+
+        y_pred = np.polyval(linear_fit, stds.index)
+        mean_y = np.mean(stds.values)
+        tss = np.sum((stds.values - mean_y) ** 2)
+        rss = np.sum((stds.values - y_pred) ** 2)
+        r_squared = 1 - (rss / tss)
+
+        linear_regression_eq = (
+            f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f} (R^2 = {r_squared:.4f})"
+        )
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(
+            stds.index,
+            stds.values,
+            "o",
+            label="Data",
+        )
+        plt.plot(
+            stds.index,
+            np.polyval(linear_fit, stds.index),
+            "-",
+            label="Linear Fit",
+        )
+        plt.xlabel("Year")
+        plt.ylabel("Difference in Standard Deviation")
+        plt.title(title)
+        plt.annotate(
+            linear_regression_eq, xy=(0.02, 0.02), xycoords="axes fraction", fontsize=12
+        )
+        plt.legend()
+
+        plt.savefig(f"{self.config['output']}{name}.png")
+        plt.close()
+
+    def test_7(self, name: str, title: str, initial: int = 365 * 30):
+        """graph year vs r^2 using quadratic fit"""
         df = self.data.get(name).dropna(subset=["TMIN", "TMAX"])
         df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
         df.loc[:, "DAY"] = df["DATE"].dt.dayofyear / df["DATE"].dt.is_leap_year.apply(
@@ -44,7 +132,9 @@ class Project:
 
         for year in years:
             ydf_data["YEAR"].append(year)
-            ydf_data["R^2"].append(self.year_analysis(df, coefficients, year))
+            ydf_data["R^2"].append(
+                self.r_squared_average_temp_year_analysis(df, coefficients, year)
+            )
 
         ydf = pd.DataFrame(ydf_data)
 
@@ -84,7 +174,8 @@ class Project:
         plt.savefig(f"{self.config['output']}{name}.png")
         plt.close()
 
-    def year_analysis(self, df: pd.DataFrame, coefficients: list, year: int):
+    def helper_7(self, df: pd.DataFrame, coefficients: list, year: int):
+        """helper method for test_7"""
         ydf = df[df["DATE"].dt.year == year]
 
         mean_y = np.mean(ydf["TAVG"])
@@ -96,10 +187,8 @@ class Project:
 
         return R_squared
 
-    def full_average_temperature(
-        self, name: str, title: str, initial_days: int = 365 * 30
-    ) -> None:
-        """Analyze average temperature data and generate graphs."""
+    def test_6(self, name: str, title: str, initial_days: int = 365 * 30) -> None:
+        """graph year vs average"""
         df = self.data.get(name)
         df = df.dropna(subset=["TMIN", "TMAX"])
 
@@ -135,10 +224,8 @@ class Project:
         plt.savefig(f"{self.config['output']}FULL_TAVG_{name}.png")
         plt.close()
 
-    def analyze_average_temperature(
-        self, name: str, title: str, initial_days: int = 365 * 30
-    ) -> None:
-        """Analyze average temperature data and generate graphs."""
+    def test_5(self, name: str, title: str, initial_days: int = 365 * 30) -> None:
+        """graph year vs r^2 using sine prediction"""
         df = self.data.get(name)
         df = df.dropna(subset=["TMIN", "TMAX"])
 
@@ -200,8 +287,8 @@ class Project:
         plt.savefig(f"{self.config['output']}TAVG_{name}.png")
         plt.close()
 
-    def analyze_maximum_precipitation(self, name: str, title: str) -> None:
-        """Analyze monthly precipitation data and generate graphs."""
+    def test_4(self, name: str, title: str) -> None:
+        """graph year vs maximum annual precipitation"""
         df = self.data.get(name)
         df = df.dropna(subset=["PRCP"])
 
@@ -235,9 +322,10 @@ class Project:
         plt.savefig(f"{self.config['output']}MAX_PRCP_{name}.png")
         plt.close()
 
-    def analyze_annual_average_temperature(
+    def test_3(
         self, name: str, title: str, year: int, initial_days: int = 365 * 30
     ) -> None:
+        """graph date vs average temperature of specific year with sine prediction"""
         df = self.data.get(name)
         df = df.dropna(subset=["TMIN", "TMAX"])
 
@@ -289,7 +377,8 @@ class Project:
         plt.savefig(f"{self.config['output']}TAVG_{name}_{year}.png")
         plt.close()
 
-    def analyze_single_annual_average_temperature(self, name: str, title: str) -> None:
+    def test_2(self, name: str, title: str) -> None:
+        """graph year vs average temperature on january 1st"""
         df = self.data.get(name)
         df = df.dropna(subset=["TMIN", "TMAX"])
 
@@ -332,4 +421,41 @@ class Project:
         plt.legend()
 
         plt.savefig(f"{self.config['output']}STAVG_{name}.png")
+        plt.close()
+
+    def test_1(self, name: str, title: str) -> None:
+        """graph year vs average annual temperature"""
+        df = self.data.get(name)
+        df = df.dropna(subset=["TMIN", "TMAX"])
+
+        df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
+
+        df["YEAR"] = df["DATE"].dt.year
+        yearly_data = df.groupby(["YEAR"])["TAVG"].mean().reset_index()
+
+        linear_fit = np.polyfit(yearly_data["YEAR"], yearly_data["TAVG"], 1)
+        linear_regression_eq = f"y = {linear_fit[0]:.4f}x + {linear_fit[1]:.4f}"
+
+        plt.figure(figsize=(10, 6))
+        plt.plot(
+            yearly_data["YEAR"],
+            yearly_data["TAVG"],
+            "o",
+            label=f"Data",
+        )
+        plt.plot(
+            yearly_data["YEAR"],
+            np.polyval(linear_fit, yearly_data["YEAR"]),
+            "-",
+            label="Linear Fit",
+        )
+        plt.xlabel("Year")
+        plt.ylabel("Average Temperature (°C)")
+        plt.title(title)
+        plt.annotate(
+            linear_regression_eq, xy=(0.02, 0.02), xycoords="axes fraction", fontsize=12
+        )
+        plt.legend()
+
+        plt.savefig(f"{self.config['output']}TAVG_{name}.png")
         plt.close()
