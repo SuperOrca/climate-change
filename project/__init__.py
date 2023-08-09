@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,12 +20,19 @@ class Project:
         """Load data from csv files from the folder specified in the config."""
         self.data = load(self.config["data"])
 
-    def test_9(self, name: str, title: str):
-        df = self.data.get(name).dropna(subset=["TMIN", "TMAX"])
-        df["TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
+    def test_9(self, name: str, mode: Literal["TMAX", "TAVG"], title: str):
+        subset = []
+        
+        if mode == "TMAX" or mode == "TAVG":
+            subset.append("TMAX")
+
+        df = self.data.get(name).dropna(subset=subset)
+
+        if mode == "TAVG":
+            df["TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
         df["DOY"] = df["DATE"].dt.day_of_year
 
-        daily_stats = df.groupby("DOY")["TAVG"].agg(["mean", "std"]).reset_index()
+        daily_stats = df.groupby("DOY")[mode].agg(["mean", "std"]).reset_index()
 
         excursions = {"YEAR": [], "EXCUR2": [], "EXCUR3": []}
 
@@ -37,34 +44,32 @@ class Project:
                 day_stats = daily_stats[daily_stats["DOY"] == day["DOY"]]
                 mean = day_stats["mean"].values[0]
                 std = day_stats["std"].values[0]
-                value = day["TAVG"]
+                value = day[mode]
 
-                if value > mean + std * 2:
+                if value > mean + std * 2 and (mode == "TMAX" or mode == "TAVG"):
                     value2 += 1
-                # if value < mean - std * 2:
-                #     value2 += 1
-
-                if value > mean + std * 3:
+                if value > mean + std * 3 and (mode == "TMAX" or mode == "TAVG"):
                     value3 += 1
-                # if value < mean - std * 3:
-                #     value3 += 1
             excursions["EXCUR2"].append(value2)
             excursions["EXCUR3"].append(value3)
 
         edf = pd.DataFrame(excursions)
+        edf.to_csv("excursion.csv")
 
         plt.figure(figsize=(10, 6))
         plt.plot(edf["YEAR"], edf["EXCUR2"], "o")
-        plt.ylabel("# of Excursions")
-        plt.title(title)
-        plt.savefig(f"{self.config['output']}{name}_2.png")
+        plt.xlabel("Year")
+        plt.ylabel("# of Temperature Excursions")
+        plt.title(f"{title} (2 sigma)")
+        plt.savefig(f"{self.config['output']}{name}_{mode}2.png")
         plt.close()
 
         plt.figure(figsize=(10, 6))
         plt.plot(edf["YEAR"], edf["EXCUR3"], "o")
-        plt.ylabel("# of Excursions")
-        plt.title(title)
-        plt.savefig(f"{self.config['output']}{name}_3.png")
+        plt.xlabel("Year")
+        plt.ylabel("# of Temperature Excursions")
+        plt.title(f"{title} (3 sigma)")
+        plt.savefig(f"{self.config['output']}{name}_{mode}3.png")
         plt.close()
 
     def test_8(self, name: str, title: str, initial: int = 30):

@@ -17,6 +17,6 @@ def load(
             df = df[~df.apply(lambda row: row.astype(str).str.startswith("999")).any(axis=1)]
             df["DATE"] = pd.to_datetime(df["DATE"])
 
-        data[file.replace(".csv", "")] = df
+        data[file.rstrip(".csv")] = df
 
     return data

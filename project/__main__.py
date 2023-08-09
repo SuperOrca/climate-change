@@ -1,3 +1,4 @@
+import os
 import json
 
 from . import Project
@@ -8,6 +9,6 @@ with open("config.json", "r") as file:
 project = Project(CONFIG)
 project.load()
 
-name = "saltlakecity_1941-2022"
+name = "miami_1948-2022"
 
-project.test_9(name, "test 9")
+project.test_9(name, "TMAX", "John Glenn Columbus International Airport: Daily High")
