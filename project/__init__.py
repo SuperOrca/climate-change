@@ -20,19 +20,12 @@ class Project:
         """Load data from csv files from the folder specified in the config."""
         self.data = load(self.config["data"])
 
-    def test_9(self, name: str, mode: Literal["TMAX", "TAVG"], title: str):
-        subset = []
-        
-        if mode == "TMAX" or mode == "TAVG":
-            subset.append("TMAX")
-
-        df = self.data.get(name).dropna(subset=subset)
-
-        if mode == "TAVG":
-            df["TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
+    def test_9(self, name: str, title: str):
+        df = self.data.get(name).dropna(subset=["TMIN", "TMAX"])
+        # df["TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
         df["DOY"] = df["DATE"].dt.day_of_year
 
-        daily_stats = df.groupby("DOY")[mode].agg(["mean", "std"]).reset_index()
+        daily_stats = df.groupby("DOY")["TMAX"].agg(["mean", "std"]).reset_index()
 
         excursions = {"YEAR": [], "EXCUR2": [], "EXCUR3": []}
 
@@ -44,11 +37,14 @@ class Project:
                 day_stats = daily_stats[daily_stats["DOY"] == day["DOY"]]
                 mean = day_stats["mean"].values[0]
                 std = day_stats["std"].values[0]
-                value = day[mode]
+                value = day["TMAX"]
 
-                if value > mean + std * 2 and (mode == "TMAX" or mode == "TAVG"):
+                if value >= mean + std * 2:
                     value2 += 1
-                if value > mean + std * 3 and (mode == "TMAX" or mode == "TAVG"):
+                # if value < mean - std * 2:
+                #     value2 += 1
+
+                if value >= mean + std * 3:
                     value3 += 1
             excursions["EXCUR2"].append(value2)
             excursions["EXCUR3"].append(value3)
@@ -59,17 +55,17 @@ class Project:
         plt.figure(figsize=(10, 6))
         plt.plot(edf["YEAR"], edf["EXCUR2"], "o")
         plt.xlabel("Year")
-        plt.ylabel("# of Temperature Excursions")
+        plt.ylabel("# of High Temperature Excursions (2 sigma)")
         plt.title(f"{title} (2 sigma)")
-        plt.savefig(f"{self.config['output']}{name}_{mode}2.png")
+        plt.savefig(f"{self.config['output']}{name}_2.png")
         plt.close()
 
         plt.figure(figsize=(10, 6))
         plt.plot(edf["YEAR"], edf["EXCUR3"], "o")
         plt.xlabel("Year")
-        plt.ylabel("# of Temperature Excursions")
+        plt.ylabel("# of High Temperature Excursions (3 sigma)")
         plt.title(f"{title} (3 sigma)")
-        plt.savefig(f"{self.config['output']}{name}_{mode}3.png")
+        plt.savefig(f"{self.config['output']}{name}_3.png")
         plt.close()
 
     def test_8(self, name: str, title: str, initial: int = 30):
@@ -130,16 +126,17 @@ class Project:
 
         idf = df.loc[:initial]
 
-        coefficients, _ = curve_fit(quadratic_function, idf["DAY"], idf["TAVG"])
+        x = idf["DAY"]
+        y = idf["TAVG"]
+        A = np.vstack([x**2, x, np.ones_like(x)]).T
+        coefficients, _ = np.linalg.lstsq(A, y, rcond=None)[:2]
 
         years = df["DATE"].dt.year.unique()
         ydf_data = {"YEAR": [], "R^2": []}
 
         for year in years:
             ydf_data["YEAR"].append(year)
-            ydf_data["R^2"].append(
-                self.r_squared_average_temp_year_analysis(df, coefficients, year)
-            )
+            ydf_data["R^2"].append(self.helper_7(df, coefficients, year))
 
         ydf = pd.DataFrame(ydf_data)
 
@@ -169,7 +166,7 @@ class Project:
             label="Linear Fit",
         )
         plt.xlabel("Year")
-        plt.ylabel("R^2")
+        plt.ylabel("R-Squared")
         plt.title(title)
         plt.annotate(
             linear_regression_eq, xy=(0.02, 0.02), xycoords="axes fraction", fontsize=12
@@ -185,9 +182,7 @@ class Project:
 
         mean_y = np.mean(ydf["TAVG"])
         SS_total = np.sum((ydf["TAVG"] - mean_y) ** 2)
-        SS_residual = np.sum(
-            (ydf["TAVG"] - quadratic_function(ydf["DAY"], *coefficients)) ** 2
-        )
+        SS_residual = np.sum((ydf["TAVG"] - np.polyval(coefficients, ydf["DAY"])) ** 2)
         R_squared = 1 - SS_residual / SS_total
 
         return R_squared
@@ -389,8 +384,7 @@ class Project:
 
         df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
 
-        df = df[df["DATE"].dt.month == 1]
-        df = df[df["DATE"].dt.day == 1]
+        df = df[df["DATE"].dt.day_of_year == 1]
 
         linear_fit = np.polyfit(df["DATE"].dt.year, df["TAVG"], 1)
 
