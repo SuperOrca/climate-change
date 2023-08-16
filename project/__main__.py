@@ -9,7 +9,5 @@ with open("config.json", "r") as file:
 project = Project(CONFIG)
 project.load()
 
-project.test_2(
-    "ithaca_1893-2022",
-    "Cornell University (Average Temperature on January 1st)",
-)
+# Write test methods here
+# python3 -m project to run
