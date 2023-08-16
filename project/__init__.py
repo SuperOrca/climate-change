@@ -19,7 +19,7 @@ class Project:
         self.data = load(self.config["data"])
 
     def method_3(self, name: str, title: str):
-        """"""
+        """Comparing number of statistically extreme daily high temperature events per year."""
         df = self.data.get(name).dropna(subset=["TMIN", "TMAX"])
         df["DOY"] = df["DATE"].dt.day_of_year
 
@@ -64,7 +64,7 @@ class Project:
         plt.close()
 
     def method_2(self, name: str, title: str, initial: int = 365 * 30):
-        """graph year vs r^2 using quadratic fit"""
+        """Comparing historical average temperature fit to individual years."""
         df = self.data.get(name).dropna(subset=["TMIN", "TMAX"])
         df.loc[:, "TAVG"] = df[["TMIN", "TMAX"]].mean(axis=1)
         df.loc[:, "DAY"] = df["DATE"].dt.dayofyear / df["DATE"].dt.is_leap_year.apply(
@@ -124,7 +124,7 @@ class Project:
         plt.close()
 
     def helper_2(self, df: pd.DataFrame, coefficients: list, year: int):
-        """helper method for test_7"""
+        """Helper for method_2. Not for testing."""
         ydf = df[df["DATE"].dt.year == year]
 
         mean_y = np.mean(ydf["TAVG"])
@@ -162,7 +162,7 @@ class Project:
         return R_squared
 
     def method_1(self, name: str, title: str) -> None:
-        """graph year vs average temperature on january 1st"""
+        """Comparing number of statistically extreme daily high temperature events per year."""
         df = self.data.get(name)
         df = df.dropna(subset=["TMIN", "TMAX"])
 
